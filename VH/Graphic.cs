@@ -248,7 +248,7 @@ namespace VH
             if (boundry.Width != int.MaxValue && x + width > boundry.Width) x = boundry.Width - width;
             int y = point.y - height / 2;
             if (y < 0) y = 0;
-            if (boundry.Height != int.MaxValue && y + height > boundry.Height) x = boundry.Height - height;
+            if (boundry.Height != int.MaxValue && y + height > boundry.Height) y = boundry.Height - height;
             return new Rect(x, y, width, height);
         }
 

@@ -47,6 +47,8 @@
             this.pointObjectcheckBox = new System.Windows.Forms.CheckBox();
             this.Resetbutton = new System.Windows.Forms.Button();
             this.Savebutton = new System.Windows.Forms.Button();
+            this.Modelbutton = new System.Windows.Forms.Button();
+            this.ResetModelbutton = new System.Windows.Forms.Button();
             this.SuspendLayout();
             // 
             // Quitbutton
@@ -217,12 +219,34 @@
             this.Savebutton.UseVisualStyleBackColor = true;
             this.Savebutton.Click += new System.EventHandler(this.Savebutton_Click);
             // 
+            // Modelbutton
+            // 
+            this.Modelbutton.Location = new System.Drawing.Point(18, 311);
+            this.Modelbutton.Name = "Modelbutton";
+            this.Modelbutton.Size = new System.Drawing.Size(62, 23);
+            this.Modelbutton.TabIndex = 17;
+            this.Modelbutton.Text = "Create";
+            this.Modelbutton.UseVisualStyleBackColor = true;
+            this.Modelbutton.Click += new System.EventHandler(this.Modelbutton_Click);
+            // 
+            // ResetModelbutton
+            // 
+            this.ResetModelbutton.Location = new System.Drawing.Point(86, 311);
+            this.ResetModelbutton.Name = "ResetModelbutton";
+            this.ResetModelbutton.Size = new System.Drawing.Size(62, 23);
+            this.ResetModelbutton.TabIndex = 18;
+            this.ResetModelbutton.Text = "Reset";
+            this.ResetModelbutton.UseVisualStyleBackColor = true;
+            this.ResetModelbutton.Click += new System.EventHandler(this.ResetModelbutton_Click);
+            // 
             // RnD
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.ControlDarkDark;
-            this.ClientSize = new System.Drawing.Size(343, 303);
+            this.ClientSize = new System.Drawing.Size(343, 346);
+            this.Controls.Add(this.ResetModelbutton);
+            this.Controls.Add(this.Modelbutton);
             this.Controls.Add(this.Savebutton);
             this.Controls.Add(this.Resetbutton);
             this.Controls.Add(this.pointObjectcheckBox);
@@ -271,5 +295,7 @@
         private System.Windows.Forms.CheckBox pointObjectcheckBox;
         private System.Windows.Forms.Button Resetbutton;
         private System.Windows.Forms.Button Savebutton;
+        private System.Windows.Forms.Button Modelbutton;
+        private System.Windows.Forms.Button ResetModelbutton;
     }
 }

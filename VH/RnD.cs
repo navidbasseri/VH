@@ -29,7 +29,8 @@ namespace VH
         static Mat SamplePicture = new Mat();
         static double CompareResult = 0.0;
         static double SubCompareResult = 0.0;
-        
+        static bool CreateMode = false;
+
 
         public RnD()
         {
@@ -40,6 +41,7 @@ namespace VH
         private void Quitbutton_Click(object sender, EventArgs e)
         {
             running = false;
+            Model.Reset();
             Hide();
             Settings.Default.XValue = XtextBox.Text;
             Settings.Default.YValue = YtextBox.Text;
@@ -105,6 +107,12 @@ namespace VH
                         image = Graphic.Crop(Fullscreenshot, client);
                         Mat movehistory;
                         CompareResult = Graphic.ComparePercentage(image, Perv_image,out movehistory);
+                        if (CreateMode)
+                        {
+                            Model.ExtractObjects(image, Perv_image, movehistory, LLHook.GetCursorPos(), DateTime.Now);
+                        }
+                         Model.Highlight();
+
                         if (!SamplePicture.Empty())
                         {
                             List<Rect> mrects = Graphic.MatchTemplates(Fullscreenshot, SamplePicture, new Rect(0, 0, 0, 0));
@@ -169,7 +177,8 @@ namespace VH
 
                             List<OpenCvSharp.Point> points = new List<OpenCvSharp.Point>();
                             //points.Add(new OpenCvSharp.Point(position.x, position.y));
-                            Rect bounds = Graphic.RectfromPoint(position, image.Size(), 400, 400);
+                            Rect bounds = Graphic.RectfromPoint(position, image.Size(), 200, 200);
+                            //Cv2.Rectangle(image, bounds, Scalar.FromRgb(255, 0, 0), 1);
                             foreach (Rect rect in Moverects)
                             {
                                 //Cv2.Rectangle(image, rect, Scalar.FromRgb(0, 255, 0), 2);
@@ -182,12 +191,13 @@ namespace VH
                                 }
                             }
                             Rect final = Cv2.BoundingRect(points);
-                            //Cv2.Rectangle(image, final, Scalar.FromRgb(0, 0, 255), 3);
-
-                            List<Rect> rects = Graphic.DetectRegions(image, new Rect(0, 0, 0, 0), 128.0, 1, 0);
-                            //                            List<Rect> rects = Graphic.DetectRegions(image, new Rect(0, 0, 0, 0), 255.0, 50, 5);
+                            //Cv2.Rectangle(image, final, Scalar.FromRgb(0, 0, 255), 2);
+                            
+                            //List<Rect> rects = Graphic.DetectRegions(image, new Rect(0, 0, 0, 0), 128.0, 1, 0);
+                            List<Rect> rects = Graphic.DetectRegions(image, new Rect(0, 0, 0, 0), 255.0, 50, 5);
+                            Cv2.GroupRectangles(rects, 0, 0.2);
                             foreach (Rect rect in rects)
-                                Cv2.Rectangle(image, rect, Scalar.FromRgb(0, 255, 0),4);
+                                Cv2.Rectangle(image, rect, Scalar.FromRgb(0, 255, 0),1);
 
                             if (objectw_flag)
                                 Cv2.ImShow("object", image);
@@ -299,6 +309,16 @@ namespace VH
                 SamplePicture.ImWrite("capture.png", Graphic.png_prms);
             }
 
+        }
+
+        private void Modelbutton_Click(object sender, EventArgs e)
+        {
+            CreateMode = !CreateMode;
+        }
+
+        private void ResetModelbutton_Click(object sender, EventArgs e)
+        {
+            Model.Reset();
         }
     }
 }

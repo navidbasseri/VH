@@ -77,9 +77,10 @@ public partial class SideBar : Form
             {
             }
 
-            public EventArea(DateTime value)
+            public EventArea(DateTime value, POINT actual_point)
             {
                 time = value;
+                this.actual_point = actual_point;
             }
 
 
@@ -93,7 +94,7 @@ public partial class SideBar : Form
             public void AddObjects(in Mat Current_frame, in Mat Previous_frame)
             {
                 foreach (Rect rect in cv_rects)
-                    Objects.Add(new Tuple<Mat, Mat>(Graphic.Crop(Current_frame, rect), Graphic.Crop(Previous_frame, rect)));
+                    Objects.Add(new Tuple<Mat, Mat>(Graphic.Crop(Previous_frame, rect), Graphic.Crop(Current_frame, rect)));
             }
 
             public List<Rect> FindRects(POINT pt)
@@ -218,26 +219,27 @@ public partial class SideBar : Form
 
         }
 
-        public bool ChangeTracker(in Mat Current_frame, in Mat Previous_frame, in Mat Mask, POINT actual_point, DateTime TimeStamp)
+        public bool ObjectTracker(in Mat Current_frame, in Mat Previous_frame, in Mat Mask, POINT actual_point, DateTime TimeStamp)
         {
-            EventArea eventarea = new EventArea(TimeStamp);
+            EventArea eventarea = new EventArea(TimeStamp, actual_point);
 
             List<Rect> change_rects = new List<Rect>();
             if (AllowedArea(actual_point))
             {
                 //POC: Create object model of picture based on positions and movements in a screen box (or bigger, etc.)
-                change_rects = Graphic.DetectRegions(Mask, Graphic.RectfromPoint(Current_mouse_pos, Current_frame.Size(), ViewBoxSize, ViewBoxSize), 128.0, 1, 0);
+                change_rects = Graphic.DetectRegions(Mask, Graphic.RectfromPoint(actual_point, Current_frame.Size(), ViewBoxSize, ViewBoxSize), 128.0, 1, 0);
                 //TODO: no rect changes => take rect from point using DetectRegions from source Current_frame
                 //TODO: Optimization => combine changed rects to form a bigger rect and check for point inside it (or relevalant position)
-                if (change_rects.Exists(item => item.Contains(new OpenCvSharp.Point(Current_mouse_pos.x, Current_mouse_pos.y))))
+
+                if (change_rects.Exists(item => item.Contains(new OpenCvSharp.Point(actual_point.x, actual_point.y))))
                 {
-                    change_rects.RemoveAll(item => !item.Contains(new OpenCvSharp.Point(Current_mouse_pos.x, Current_mouse_pos.y)));
+                    change_rects.RemoveAll(item => !item.Contains(new OpenCvSharp.Point(actual_point.x, actual_point.y)));
                     if (change_rects.Count > 1)
                         Cv2.GroupRectangles(change_rects, 0, 0.2);
                 }
                 else
                 {
-                    Rect bound_rect = Graphic.RectfromPoint(Current_mouse_pos, Current_frame.Size(), ViewBoxSize, ViewBoxSize);
+                    Rect bound_rect = Graphic.RectfromPoint(actual_point, Current_frame.Size(), ViewBoxSize, ViewBoxSize);
                     List<OpenCvSharp.Point> points = new List<OpenCvSharp.Point>();
                     foreach (Rect rect in change_rects)
                     {
@@ -279,7 +281,7 @@ public partial class SideBar : Form
         }
         public bool FlushEvents(in Mat image, DateTime TimeStamp, bool end=false)
         {
-            //TODO : comparte the changed part with old changed part. if the same the movement happend then look for next change
+            //TODO : compare the changed part with old changed part. if the same the movement happend then look for next change
             //if no movement happened cash the current state to be saved before next event hapenning
 
 
@@ -323,7 +325,15 @@ public partial class SideBar : Form
 
                 if (event_Areas.Count() != 0)
                 {
-                    // TODO: remove the un-needed event areas which does not have effect on behaviour (files and entries in dictionaries)
+                    //TODO: remove the un-needed event areas which does not have effect on behaviour (files and entries in dictionaries)
+
+                    //TODO: track the changes back to separate connected objects from eachother (case on menu)
+                    //      case 1: hover cause change under cursor (probible object)
+                    //      case 2: hover casue another area change (probible objects out of cursor area in combining with case 1)
+                    //      case 3: hover cause both area changes (track and depart objects from previous object state in case 1)
+                    HashSet<EventArea> Hot_Areas = new HashSet<EventArea>();
+
+                    /* REFACTOR : all changed area should be considered to create the last state therefore cannot be removed easily
                     // Rect bound_rect = Graphic.RectfromPoint(event_struct.actual_point, freezd_image.Size(), ViewBoxSize, ViewBoxSize);
                     List<POINT> points = new List<POINT>();
                     foreach (LLHook.Event event_ in event_struct.events)
@@ -331,10 +341,16 @@ public partial class SideBar : Form
                             points.Add((event_ as LLHook.MouseEvent).msllhookstruct.pt);
 
                     // event_Areas.RemoveAll(item => !item.OverlapRect(bound_rect));
-                    HashSet<EventArea> Hot_Areas = new HashSet<EventArea>();
                     foreach (POINT p in points)
                         foreach(EventArea eventArea in event_Areas.FindAll(item => item.ContainPoint(new OpenCvSharp.Point(p.x, p.y))))
                             Hot_Areas.Add(eventArea);
+
+                    Hot_Areas.Clear();
+                    */
+
+                    foreach (EventArea eventArea in event_Areas)
+                        Hot_Areas.Add(eventArea);
+
 
                     using (var writer = new StreamWriter(File.Create(filename + ".cjs")))
                         writer.Write(JsonConvert.SerializeObject(Hot_Areas.ToList(), jsonSerializerSettings));
@@ -390,11 +406,14 @@ public partial class SideBar : Form
                     {
                         Mat previous_image = new Mat();
                         Previous_frame.CopyTo(previous_image);
+                        POINT mouse_pos = Current_mouse_pos;
 
                         //History the changes by objects found under the cursor position
                         Task.Run(() =>
                         {
-                            ChangesEventTrigger(Current_frame, previous_image, Mask, Current_mouse_pos, TimeStamp);
+                            ChangesEventTrigger(Current_frame, previous_image, Mask, mouse_pos, TimeStamp);
+                            Model.ExtractObjects(Current_frame, previous_image, Mask, mouse_pos, TimeStamp);
+                            Model.Highlight();
                         });
                         
                         
@@ -505,7 +524,7 @@ public partial class SideBar : Form
 #endif 
 
             FlushEventsTrigger += new FlushEventsHandler(FlushEvents);
-            ChangesEventTrigger += new ChangesEventHandler(ChangeTracker);
+            ChangesEventTrigger += new ChangesEventHandler(ObjectTracker);
             CaptureEngine();
             LLHook.EventTrigger += new LLHook.EventHandler(EventFunction);
             LLHook.InstallHook();
@@ -688,8 +707,6 @@ public partial class SideBar : Form
                         List<EventArea> SearchArea = new List<EventArea>();
 
                         
-
-
                         if (eventareas.Count == 0) // try to extract the object from previous point in the previously stored image
                         {
                             List<Rect> change_rects = new List<Rect>();
@@ -721,8 +738,7 @@ public partial class SideBar : Form
                                     change_rects.Add(final);
                             }
 
-                            EventArea searchArea = new EventArea(me.time);
-                            searchArea.actual_point = me.msllhookstruct.pt;
+                            EventArea searchArea = new EventArea(me.time, me.msllhookstruct.pt);
                             searchArea.shift = me.shift;
                             searchArea.capslock = me.capslock;
                             searchArea.AddRects(change_rects);
@@ -733,9 +749,62 @@ public partial class SideBar : Form
                         else //if there is area of changes happened before this event
                         {
                             SearchArea.AddRange(eventareas);
+
+                            //move mouse on the places hovered as before
+                            foreach (EventArea eventarea in SearchArea)
+                            {
+                                Track_Changes();
+                                foreach (Tuple<Mat, Mat, Rectangle> RectObject in eventarea.AllRectObjects())
+                                {
+                                    List<Rect> found_rects = new List<Rect>();
+                                    Action<Mat> CheckRects = delegate(Mat CurrentRect)
+                                    {
+                                        found_rects = Graphic.MatchTemplates(Previous_frame, CurrentRect, new Rect(0, 0, 0, 0));
+                                        if (found_rects.Count() > 0)
+                                        {
+                                            foreach (Rect rect in found_rects)
+                                            {
+                                                //make sure if the objects are the same by comparing the percentage
+                                                Mat FoundRect = Previous_frame.SubMat(rect);
+                                                if (Graphic.ComparePercentage(CurrentRect, FoundRect) > Similarity_tolerance)
+                                                {
+                                                    //calculate relative click position from start of rect
+                                                    found_objects.Add(new Tuple<Rect, OpenCvSharp.Point>(
+                                                                                      rect, new OpenCvSharp.Point(eventarea.actual_point.x - RectObject.Item3.X, eventarea.actual_point.y - RectObject.Item3.Y)
+                                                                      )
+                                                  );
+                                                }
+                                            }
+                                        }
+                                    };
+
+                                    CheckRects(RectObject.Item1.Clone());
+                                    //if item1 failed try item2
+                                    //(1st:before capture if failes => after capture)
+                                    if (found_objects.Count == 0)
+                                    {
+                                        CheckRects(RectObject.Item2.Clone());
+                                    }
+
+                                    if (found_objects.Count() != 0)
+                                    {
+                                        Graphic.HighlightRects(found_objects.ConvertAll(pair => pair.Item1), Color.Red);
+                                        Graphic.HighlightRects(found_objects.ConvertAll(pair => pair.Item1), Color.Red);
+                                        Graphic.HighlightRects(found_objects.ConvertAll(pair => pair.Item1), Color.Red);
+                                        POINT pt = new POINT((uint)(found_objects[0].Item1.X + found_objects[0].Item2.X),
+                                                            (uint)(found_objects[0].Item1.Y + found_objects[0].Item2.Y));
+                                        LLHook.MoveMouse(pt);
+                                        found_objects.Clear();
+
+                                    }
+
+                                }
+
+                            }
+
+                            //from last change area to first change area
                             SearchArea.Reverse();
                         }
-
 
                         Stack<EventArea> event_history = new Stack<EventArea>();
                         bool found = false;
@@ -751,9 +820,8 @@ public partial class SideBar : Form
                                     foreach (Tuple<Mat, Mat, Rectangle> RectObject in eventarea.AllRectObjects())
                                     {
                                         List<Rect> found_rects = new List<Rect>();
-                                        Mat CurrentRect = RectObject.Item1.Clone();
 
-                                        Action CheckRects = delegate
+                                        Action<Mat> CheckRects = delegate(Mat CurrentRect)
                                         {
                                             found_rects = Graphic.MatchTemplates(Previous_frame, CurrentRect, new Rect(0, 0, 0, 0));
                                             if (found_rects.Count() > 0)
@@ -777,13 +845,12 @@ public partial class SideBar : Form
                                             }
                                         };
 
-                                        CheckRects();
+                                        CheckRects(RectObject.Item1.Clone());
                                         //if item1 failed try item2
                                         //(1st:before capture if failes => after capture)
                                         if (!found)
                                         {
-                                            CurrentRect = RectObject.Item2.Clone();
-                                            CheckRects();
+                                            CheckRects(RectObject.Item2.Clone());
                                             if (found_rects.Count() == 0)
                                             {
                                                 //DEBUG:
@@ -793,8 +860,6 @@ public partial class SideBar : Form
                                                 //Thread.Sleep(2000);
                                             }
                                         }
-
-                                        CurrentRect.Dispose();
 
                                         if (found)
                                             return;
@@ -876,9 +941,9 @@ public partial class SideBar : Form
                         //List<Rect> rects = found_objects.ConvertAll(pair => pair.Item1);
                         //if(rects.Count>0) Graphic.ZoomRect(rects[0]);
 
-                        Graphic.HighlightRects(found_objects.ConvertAll(pair => pair.Item1), Color.Yellow);
-                        Graphic.HighlightRects(found_objects.ConvertAll(pair => pair.Item1), Color.Yellow);
-                        Graphic.HighlightRects(found_objects.ConvertAll(pair => pair.Item1), Color.Yellow);
+                        //Graphic.HighlightRects(found_objects.ConvertAll(pair => pair.Item1), Color.Yellow);
+                        //Graphic.HighlightRects(found_objects.ConvertAll(pair => pair.Item1), Color.Yellow);
+                        //Graphic.HighlightRects(found_objects.ConvertAll(pair => pair.Item1), Color.Yellow);
                         if (found_objects.Count == 0)
                         {
                             if (retry > 0)
@@ -1004,7 +1069,7 @@ public partial class SideBar : Form
 
         private void SavepictureBox_Click(object sender, EventArgs e)
         {
-           // Graphic.ZoomRect(new Rect(1000, 100, 50, 300));
+
         }
 
         private void LoadpictureBox_Click(object sender, EventArgs e)
