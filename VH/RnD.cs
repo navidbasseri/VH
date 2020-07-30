@@ -30,6 +30,7 @@ namespace VH
         static double CompareResult = 0.0;
         static double SubCompareResult = 0.0;
         static bool CreateMode = false;
+        static bool ResetModel = false;
 
 
         public RnD()
@@ -60,7 +61,8 @@ namespace VH
                     fps_label.Text = "fps:" + 1000 / stopwatch.ElapsedMilliseconds + Environment.NewLine +
                                      "ms:" + stopwatch.ElapsedMilliseconds + Environment.NewLine +
                                      "CP:" + CompareResult + Environment.NewLine +
-                                     "SCP:" + SubCompareResult;
+                                     "SCP:" + SubCompareResult + Environment.NewLine +
+                                     "OC:" + Model.objects.Count();
             }
             catch (Exception exception)
             {
@@ -107,11 +109,15 @@ namespace VH
                         image = Graphic.Crop(Fullscreenshot, client);
                         Mat movehistory;
                         CompareResult = Graphic.ComparePercentage(image, Perv_image,out movehistory);
-                        if (CreateMode)
+                        if (ResetModel)
                         {
-                            Model.ExtractObjects(image, Perv_image, movehistory, LLHook.GetCursorPos(), DateTime.Now);
+                            Model.Reset();
+                            ResetModel = false;
                         }
-                         Model.Highlight();
+
+                        if (CreateMode)
+                            Model.ExtractObjects(image, Perv_image, movehistory, LLHook.GetCursorPos(), DateTime.Now);
+                        
 
                         if (!SamplePicture.Empty())
                         {
@@ -166,8 +172,6 @@ namespace VH
                         //Graphic.Blur(ref image, new Rect(0, 0, 0, 0), 5);
                         if (ObjectcheckBox.Checked)
                         {
-                            POINT position = LLHook.GetCursorPos();
-                            List<Rect> Moverects = Graphic.DetectRegions(movehistory, client, 128.0, 1, 0);
                             //Debug:
                             //if (!movehistory.Empty())
                             //{
@@ -175,13 +179,16 @@ namespace VH
                             //}
                             //List<Rect> Moverects = Graphic.DetectRegions(movehistory, new Rect(0, 0, 0, 0), 128.0, 1, 0);
 
-                            List<OpenCvSharp.Point> points = new List<OpenCvSharp.Point>();
-                            //points.Add(new OpenCvSharp.Point(position.x, position.y));
+                            /*  Changing Areas preview
+                            POINT position = LLHook.GetCursorPos();
                             Rect bounds = Graphic.RectfromPoint(position, image.Size(), 200, 200);
                             //Cv2.Rectangle(image, bounds, Scalar.FromRgb(255, 0, 0), 1);
-                            foreach (Rect rect in Moverects)
+
+                            List<Rect> hot_rects = Graphic.DetectRegions(movehistory, client, 128.0, 1, 0);
+                            List<OpenCvSharp.Point> points = new List<OpenCvSharp.Point>();
+                            foreach (Rect rect in hot_rects)
                             {
-                                //Cv2.Rectangle(image, rect, Scalar.FromRgb(0, 255, 0), 2);
+                                Cv2.Rectangle(image, rect, Scalar.FromRgb(0, 255, 0), 1);
                                 
                                 Rect union = bounds & rect;
                                 if (union.X* union.Y!=0)
@@ -191,13 +198,23 @@ namespace VH
                                 }
                             }
                             Rect final = Cv2.BoundingRect(points);
-                            //Cv2.Rectangle(image, final, Scalar.FromRgb(0, 0, 255), 2);
-                            
-                            //List<Rect> rects = Graphic.DetectRegions(image, new Rect(0, 0, 0, 0), 128.0, 1, 0);
-                            List<Rect> rects = Graphic.DetectRegions(image, new Rect(0, 0, 0, 0), 255.0, 50, 5);
+                            Cv2.Rectangle(image, final, Scalar.FromRgb(0, 0, 255), 2);
+                            */
+
+                            /*All Objects Preview
+                            List<Rect> rects = Graphic.DetectRegions(image, new Rect(0, 0, 0, 0), 128.0, 1, 0);
+                            //List<Rect> rects = Graphic.DetectRegions(image, new Rect(0, 0, 0, 0), 255.0, 50, 5);
                             Cv2.GroupRectangles(rects, 0, 0.2);
                             foreach (Rect rect in rects)
                                 Cv2.Rectangle(image, rect, Scalar.FromRgb(0, 255, 0),1);
+                            */
+
+                            // Create Object model
+                            Cv2.Rectangle(image, new OpenCvSharp.Point(0, 0), new OpenCvSharp.Point(image.Width, image.Height), Scalar.FromRgb(0, 0, 0), -1);
+                            foreach (Object obj in Model.objects)
+                                if (obj.IsAvaliableState)
+                                    obj.NextState.CopyTo(image.SubMat(obj.rect));
+
 
                             if (objectw_flag)
                                 Cv2.ImShow("object", image);
@@ -318,7 +335,7 @@ namespace VH
 
         private void ResetModelbutton_Click(object sender, EventArgs e)
         {
-            Model.Reset();
+            ResetModel = true;
         }
     }
 }

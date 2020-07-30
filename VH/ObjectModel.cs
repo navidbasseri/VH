@@ -5,6 +5,7 @@ using System.Drawing;
 using System.Linq;
 using System.Net.NetworkInformation;
 using System.Runtime.CompilerServices;
+using System.Runtime.Remoting;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,6 +17,7 @@ namespace VH
     {
         public Rect rect;
         public List<Mat> States = new List<Mat>();
+        public int CurrentState = 0;
 
         public @Object(in Rect rect)
         {
@@ -70,6 +72,32 @@ namespace VH
             return result;
         }
 
+
+        public bool IsAvaliableState
+        {
+            get
+            {
+                return States.Count > 0;
+            }
+        }
+
+        public Mat NextState
+        {
+            get
+            {
+                Mat result = new Mat();
+                if (CurrentState < States.Count)
+                    result = States[CurrentState];
+
+                CurrentState++;
+
+                if (CurrentState >= States.Count)
+                    CurrentState = 0;
+
+                return result;
+            }
+        }
+
         public void Dispose()
         {
             foreach (Mat mat in States)
@@ -97,7 +125,15 @@ namespace VH
 
         public static void Highlight()
         {
-            Graphic.HighlightRects(objects.ConvertAll(item => item.rect), Color.Yellow);
+            Color color = Color.Red;
+            foreach (Object obj in objects)
+            {
+                Graphic.HighlightRect(obj.rect, color);
+                if (color == Color.Red)
+                    color = Color.Blue;
+                else
+                    color = Color.Red;
+            }
         }
 
         public static bool UniqueAdd(Object obj)
@@ -135,30 +171,44 @@ namespace VH
             List<Rect> hot_rects = new List<Rect>();
             hot_rects = Graphic.DetectRegions(Mask, new Rect(0, 0, 0, 0), 128.0, 1, 0);
 
-            foreach(Rect rect in hot_rects)
+            List<OpenCvSharp.Point> points = new List<OpenCvSharp.Point>();
+//            Rect bounds = Graphic.RectfromPoint(actual_point, Current_frame.Size(), 200, 200);
+            foreach (Rect r in hot_rects)
+            {
+//                Rect union = bounds & r;
+//                if (union.X * union.Y != 0)
+                {
+                    points.Add(r.TopLeft);
+                    points.Add(r.BottomRight);
+                }
+            }
+            if (points.Count == 0)
+                return;
+            Rect rect = Cv2.BoundingRect(points);
+
+//            foreach (Rect rect in hot_rects)
             {
                 Mat rect_Current_frame = Current_frame.SubMat(rect);
                 Mat rect_Previous_frame = Previous_frame.SubMat(rect);
 
-                List<@Object> similar_objs = FindOverlappedObject(rect);
-                if (similar_objs.Count == 0)
-                {
-                    Object obj = new Object(rect, rect_Current_frame);
-                    obj.AddState(rect_Previous_frame);
-                    UniqueAdd(obj);
-                }
-                else
-                foreach (@Object obj in similar_objs)
+                List<@Object> overlapping_objs = FindOverlappedObject(rect);
+
+                List<@Object> container_objs = new List<Object>();
+
+                foreach (@Object obj in overlapping_objs)
                 {
                     if (obj.IsSame(rect_Current_frame)) break;
                     if (obj.IsSame(rect_Previous_frame)) break;
 
-
                     foreach (Mat state in obj.States)
                     {
                         List <Rect> found_rects = Graphic.MatchTemplates(rect_Current_frame, state, new Rect(0, 0, 0, 0));
+                        if(found_rects.Count == 0)
+                            found_rects = Graphic.MatchTemplates(rect_Previous_frame, state, new Rect(0, 0, 0, 0));
+
                         if (found_rects.Count > 0)
                         {
+                            container_objs.Add(obj);
                             foreach (Rect frect in found_rects)
                             {
                                 Rect newObject = SubtractRect(new Rect(0, 0, rect_Current_frame.Width, rect_Current_frame.Height), frect);
@@ -170,6 +220,14 @@ namespace VH
                             }
                         }
                     }
+
+                }
+
+                if (container_objs.Count == 0)
+                {
+                    Object newobj = new Object(rect, rect_Current_frame);
+                    newobj.AddState(rect_Previous_frame);
+                    UniqueAdd(newobj);
                 }
 
                 rect_Current_frame.Dispose();

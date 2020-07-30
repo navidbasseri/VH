@@ -67,7 +67,7 @@
             this.fps_label.ForeColor = System.Drawing.Color.White;
             this.fps_label.Location = new System.Drawing.Point(12, 9);
             this.fps_label.Name = "fps_label";
-            this.fps_label.Size = new System.Drawing.Size(76, 60);
+            this.fps_label.Size = new System.Drawing.Size(140, 98);
             this.fps_label.TabIndex = 1;
             // 
             // report_timer
@@ -81,7 +81,7 @@
             this.ScreencheckBox.Checked = true;
             this.ScreencheckBox.CheckState = System.Windows.Forms.CheckState.Checked;
             this.ScreencheckBox.ForeColor = System.Drawing.Color.Yellow;
-            this.ScreencheckBox.Location = new System.Drawing.Point(95, 9);
+            this.ScreencheckBox.Location = new System.Drawing.Point(161, 9);
             this.ScreencheckBox.Name = "ScreencheckBox";
             this.ScreencheckBox.Size = new System.Drawing.Size(81, 17);
             this.ScreencheckBox.TabIndex = 2;
@@ -95,7 +95,7 @@
             this.MovecheckBox.Checked = true;
             this.MovecheckBox.CheckState = System.Windows.Forms.CheckState.Checked;
             this.MovecheckBox.ForeColor = System.Drawing.Color.Yellow;
-            this.MovecheckBox.Location = new System.Drawing.Point(95, 23);
+            this.MovecheckBox.Location = new System.Drawing.Point(161, 23);
             this.MovecheckBox.Name = "MovecheckBox";
             this.MovecheckBox.Size = new System.Drawing.Size(74, 17);
             this.MovecheckBox.TabIndex = 3;
@@ -109,7 +109,7 @@
             this.ObjectcheckBox.Checked = true;
             this.ObjectcheckBox.CheckState = System.Windows.Forms.CheckState.Checked;
             this.ObjectcheckBox.ForeColor = System.Drawing.Color.Yellow;
-            this.ObjectcheckBox.Location = new System.Drawing.Point(95, 37);
+            this.ObjectcheckBox.Location = new System.Drawing.Point(161, 37);
             this.ObjectcheckBox.Name = "ObjectcheckBox";
             this.ObjectcheckBox.Size = new System.Drawing.Size(78, 17);
             this.ObjectcheckBox.TabIndex = 4;
@@ -119,7 +119,7 @@
             // 
             // XtextBox
             // 
-            this.XtextBox.Location = new System.Drawing.Point(30, 82);
+            this.XtextBox.Location = new System.Drawing.Point(28, 110);
             this.XtextBox.Name = "XtextBox";
             this.XtextBox.Size = new System.Drawing.Size(28, 20);
             this.XtextBox.TabIndex = 5;
@@ -127,7 +127,7 @@
             // Xlabel
             // 
             this.Xlabel.AutoSize = true;
-            this.Xlabel.Location = new System.Drawing.Point(10, 85);
+            this.Xlabel.Location = new System.Drawing.Point(12, 113);
             this.Xlabel.Name = "Xlabel";
             this.Xlabel.Size = new System.Drawing.Size(17, 13);
             this.Xlabel.TabIndex = 6;
@@ -136,7 +136,7 @@
             // Ylabel
             // 
             this.Ylabel.AutoSize = true;
-            this.Ylabel.Location = new System.Drawing.Point(63, 85);
+            this.Ylabel.Location = new System.Drawing.Point(57, 113);
             this.Ylabel.Name = "Ylabel";
             this.Ylabel.Size = new System.Drawing.Size(17, 13);
             this.Ylabel.TabIndex = 8;
@@ -144,16 +144,16 @@
             // 
             // YtextBox
             // 
-            this.YtextBox.Location = new System.Drawing.Point(83, 82);
+            this.YtextBox.Location = new System.Drawing.Point(72, 110);
             this.YtextBox.Name = "YtextBox";
             this.YtextBox.Size = new System.Drawing.Size(28, 20);
             this.YtextBox.TabIndex = 7;
             // 
             // Runbutton
             // 
-            this.Runbutton.Location = new System.Drawing.Point(17, 110);
+            this.Runbutton.Location = new System.Drawing.Point(111, 110);
             this.Runbutton.Name = "Runbutton";
-            this.Runbutton.Size = new System.Drawing.Size(43, 23);
+            this.Runbutton.Size = new System.Drawing.Size(41, 23);
             this.Runbutton.TabIndex = 9;
             this.Runbutton.Text = "Run";
             this.Runbutton.UseVisualStyleBackColor = true;
@@ -192,7 +192,7 @@
             this.pointObjectcheckBox.Checked = true;
             this.pointObjectcheckBox.CheckState = System.Windows.Forms.CheckState.Checked;
             this.pointObjectcheckBox.ForeColor = System.Drawing.Color.Yellow;
-            this.pointObjectcheckBox.Location = new System.Drawing.Point(95, 52);
+            this.pointObjectcheckBox.Location = new System.Drawing.Point(161, 52);
             this.pointObjectcheckBox.Name = "pointObjectcheckBox";
             this.pointObjectcheckBox.Size = new System.Drawing.Size(84, 17);
             this.pointObjectcheckBox.TabIndex = 14;
