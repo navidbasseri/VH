@@ -2,37 +2,52 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Linq;
-using System.Net.NetworkInformation;
-using System.Runtime.CompilerServices;
-using System.Runtime.Remoting;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Runtime.Serialization;
+using Newtonsoft.Json;
+using System.IO;
 
 namespace VH
 {
-
+    [Serializable()]
     public class @Object : IDisposable
-    {
-        public Rect rect;
-        public List<Mat> States = new List<Mat>();
-        public int CurrentState = 0;
+    {   
+        public List<String> StateNames = new List<String>();
 
+        [NonSerialized]
+        public List<Mat> States = new List<Mat>();
+
+        protected int CurrentState = -1;
+        [NonSerialized] 
+        public Rect rect;
+
+        public Rectangle rectangle
+        {
+            get
+            {
+                return new Rectangle(rect.X, rect.Y, rect.Width, rect.Height);
+            }
+
+            set
+            {
+                rect = new Rect(value.X, value.Y, value.Width, value.Height);
+            }
+        }
+
+        [JsonConstructor]
         public @Object(in Rect rect)
         {
             this.rect = rect;
+            CurrentState = 0;
         }
 
-        public @Object(in Rect rect, Mat mat)
+        public @Object(in Rect rect, Mat mat) : this(rect)
         {
-            this.rect = rect;
             this.States.Add(mat.Clone());
         }
 
         public bool AddState(in Mat mat, bool force = false)
         {
-            if (force || !IsSame(mat))
+            if (force || !ContainState(mat))
             {
                 States.Add(mat.Clone());
                 return true;
@@ -46,7 +61,7 @@ namespace VH
         {
             int result = 0;
             foreach (Mat mat in mats)
-                if (force || !IsSame(mat))
+                if (force || !ContainState(mat))
                 {
                     result++;
                     States.Add(mat.Clone());
@@ -55,7 +70,7 @@ namespace VH
             return result;
         }
 
-        public bool IsSame(in Mat mat)
+        public bool ContainState(in Mat mat)
         {
             foreach (Mat m in States)
                 if (Graphic.ComparePercentage(m, mat) == 100.0 && m.Size().Equals(mat.Size()))
@@ -64,7 +79,7 @@ namespace VH
         }
 
 
-        public bool Grab(in Mat image)
+        public bool GrabState(in Mat image)
         {
             Mat img_rect = image.SubMat(this.rect);
             bool result= AddState(img_rect);
@@ -72,8 +87,8 @@ namespace VH
             return result;
         }
 
-
-        public bool IsAvaliableState
+        [JsonIgnore]
+        public bool IsStateAvaliable
         {
             get
             {
@@ -81,6 +96,8 @@ namespace VH
             }
         }
 
+
+        [JsonIgnore]
         public Mat NextState
         {
             get
@@ -98,15 +115,35 @@ namespace VH
             }
         }
 
+
+        [OnSerializing()]
+        internal void OnSerializingMethod(StreamingContext context)
+        {// create the image files based on hash image structure
+            bool already_hashed = false;
+            foreach (Mat state in States)
+                StateNames.Add(ImageHashTable.ImageObject(state, Global.RecordPath, ref already_hashed));
+        }
+
+        [OnDeserialized()]
+        internal void OnDeserializedMethod(StreamingContext context)
+        {
+            foreach (String StateName in StateNames)
+            {
+                Mat State;
+                if (ImageHashTable.LoadObject(Global.RecordPath + StateName + ".png", out State))
+                    States.Add(State);
+            }
+        }
+
         public void Dispose()
         {
+            CurrentState = -1;
             foreach (Mat mat in States)
                 mat.Dispose();
         }
-
     }
 
-    public static class Model
+    public static class ObjectModel
     {
         public static List<@Object> objects = new List<@Object>();
 
@@ -115,7 +152,6 @@ namespace VH
             foreach (Object obj in objects)
                 obj.Dispose();
             objects.Clear();
-
         }
 
         public static List<@Object> FindOverlappedObject(Rect rect)
@@ -123,17 +159,9 @@ namespace VH
             return objects.FindAll(item => (item.rect & rect).Width * (item.rect & rect).Height != 0);
         }
 
-        public static void Highlight()
+        public static List<@Object> FindObjectByState(Mat state)
         {
-            Color color = Color.Red;
-            foreach (Object obj in objects)
-            {
-                Graphic.HighlightRect(obj.rect, color);
-                if (color == Color.Red)
-                    color = Color.Blue;
-                else
-                    color = Color.Red;
-            }
+            return objects.FindAll(item => item.ContainState(state));
         }
 
         public static bool UniqueAdd(Object obj)
@@ -143,7 +171,7 @@ namespace VH
                 List<Mat> unknownStates = new List<Mat>();
                 bool shared_state = false;
                 foreach (Mat state in obj.States)
-                    if (@object.IsSame(state))
+                    if (@object.ContainState(state))
                         shared_state = true;
                     else
                         unknownStates.Add(state);
@@ -159,6 +187,45 @@ namespace VH
             return true;
         }
 
+
+        public static void Save()
+        {
+            JsonSerializerSettings jsonSerializerSettings = new JsonSerializerSettings();
+            jsonSerializerSettings.Formatting = Newtonsoft.Json.Formatting.Indented;
+            jsonSerializerSettings.NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore;
+            jsonSerializerSettings.TypeNameHandling = Newtonsoft.Json.TypeNameHandling.Auto;
+            using (var writer = new StreamWriter(File.Create(Global.RecordPath + "Model.obj")))
+                writer.Write(JsonConvert.SerializeObject(objects, jsonSerializerSettings));
+        }
+
+
+        static public bool Load()
+        {
+            Reset();
+
+            if (File.Exists(Global.RecordPath + "Model.obj"))
+                using (var reader = new StreamReader(File.OpenRead(Global.RecordPath + "Model.obj")))
+                {
+                    try
+                    {
+                        lock (objects)
+                            objects = JsonConvert.DeserializeObject<List<@Object>>(reader.ReadToEnd(), new Newtonsoft.Json.JsonSerializerSettings
+                            {
+                                TypeNameHandling = Newtonsoft.Json.TypeNameHandling.Auto,
+                                NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore,
+                            });
+                    }
+                    catch (Exception exception)
+                    {
+                        Console.WriteLine(exception.Message);
+                        return false;
+
+                    }
+                }
+
+            return true;
+        }
+
         public static Rect SubtractRect(Rect main_rect, Rect sub_rectrect)
         {
             Rect result = new Rect(main_rect.Location, main_rect.Size);
@@ -166,23 +233,41 @@ namespace VH
             return result;
         }
 
-        public static void ExtractObjects(in Mat Current_frame, in Mat Previous_frame, in Mat Mask, POINT actual_point, DateTime TimeStamp)
+        public static void ExtractObjects(in Mat Current_frame, in Mat Previous_frame, in Mat Mask, POINT actual_point, DateTime TimeStamp, int ViewBoxSize = 0)
         {
             List<Rect> hot_rects = new List<Rect>();
+
+            if (Cv2.CountNonZero(Mask) == 0) //No changes detected between two frames
+                return;
+
             hot_rects = Graphic.DetectRegions(Mask, new Rect(0, 0, 0, 0), 128.0, 1, 0);
+            
+            if (hot_rects.Count == 0) // No reagion of interest detected
+                return;
 
             List<OpenCvSharp.Point> points = new List<OpenCvSharp.Point>();
-//            Rect bounds = Graphic.RectfromPoint(actual_point, Current_frame.Size(), 200, 200);
+           
+            Rect bounds = Graphic.RectfromPoint(actual_point, Current_frame.Size(), ViewBoxSize, ViewBoxSize);
+
             foreach (Rect r in hot_rects)
             {
-//                Rect union = bounds & r;
-//                if (union.X * union.Y != 0)
+                if (ViewBoxSize>0) 
+                { 
+                    Rect union = bounds & r;
+                    if (union.X * union.Y != 0)
+                    {
+                        points.Add(r.TopLeft);
+                        points.Add(r.BottomRight);
+                    }
+                }
+                else
                 {
                     points.Add(r.TopLeft);
                     points.Add(r.BottomRight);
                 }
             }
-            if (points.Count == 0)
+
+            if (points.Count == 0) //No object in bound area detected
                 return;
             Rect rect = Cv2.BoundingRect(points);
 
@@ -197,8 +282,8 @@ namespace VH
 
                 foreach (@Object obj in overlapping_objs)
                 {
-                    if (obj.IsSame(rect_Current_frame)) break;
-                    if (obj.IsSame(rect_Previous_frame)) break;
+                    if (obj.ContainState(rect_Current_frame)) break;
+                    if (obj.ContainState(rect_Previous_frame)) break;
 
                     foreach (Mat state in obj.States)
                     {

@@ -8,9 +8,6 @@ using OpenCvSharp;
 using OpenCvSharp.XFeatures2D;
 using System.Windows.Forms;
 using System.Threading;
-using System.IO;
-using System.Net;
-using OpenCvSharp.Extensions;
 
 namespace VH
 {
@@ -49,7 +46,6 @@ namespace VH
         static Bitmap shot;
         static Graphics gfx;
         public static Mat fmask = new Mat();
-        public static ImageEncodingParam[] png_prms = new ImageEncodingParam[] { new ImageEncodingParam(ImwriteFlags.PngCompression, 0) };
         static BackgroundSubtractorMOG2 mOG2 = BackgroundSubtractorMOG2.Create(1, 16, false);
         static MSER mser = MSER.Create(5, 50, 14400, 0.25, 0.20, 200, 1.010, 0.0030, 5);
         static double hessianThreshold = 100;
@@ -59,8 +55,6 @@ namespace VH
         static bool upright = false;
         static SURF surf = SURF.Create(hessianThreshold, nOctaves, nOctaveLayers, extended, upright);
         static DescriptorMatcher matcher = DescriptorMatcher.Create(DescriptorMatcherMethod.BRUTEFORCE);
-        public static SortedDictionary<String, String> ImageHashTable = new SortedDictionary<String, String>();
-        public static SortedDictionary<String, SortedDictionary<String, String>> ImageSubHashTable = new SortedDictionary<String, SortedDictionary<String, String>>();
 
 
         [DllImport("user32.dll")]
@@ -725,159 +719,6 @@ namespace VH
         public static Rect Rectangle2Rect(in Rectangle rect)
         {
             return new Rect(rect.X, rect.Y, rect.Width, rect.Height);
-        }
-
-        public static String HashImage(in Mat image, in int size = 8)
-        {
-            Mat img = new Mat();
-            Cv2.Resize(image, img, new OpenCvSharp.Size(size, size));
-            Cv2.CvtColor(img, img, ColorConversionCodes.BGRA2GRAY);
-            img.ConvertTo(img, MatType.CV_8U);
-            int length = (int)(img.Total() * img.Channels());
-            byte[] bytes = new byte[length];
-            img.GetArray(out bytes);
-            //Debug: Cv2.ImEncode(".png", img, out bytes, png_prms);
-            return System.Convert.ToBase64String(bytes);
-        }
-
-
-        public static String ImageSubObject(in Mat image, string RecordPath, ref SortedDictionary<String, String> SubDic, int hashsize = 16)
-        {
-            string Hash = HashImage(image, hashsize);
-            string object_name = "";
-
-            string value = "";
-            if (SubDic.Count == 0) // sub dictionary cannot be empty!
-            {
-                return "";
-            } else
-            {
-                //get the first value as key for creating object names
-                value = SubDic.Values.First();
-            }
-
-            if (value == "SubHash")
-            {// hash has more sub hashs. create sub hash or look if the sub hash exists
-                SortedDictionary<String, String> Sub_Dic;
-                if (ImageSubHashTable.TryGetValue(Hash, out Sub_Dic))
-                    object_name = ImageSubObject(image, RecordPath, ref Sub_Dic, hashsize + 8);
-            }
-            else if (SubDic.ContainsKey(Hash))
-            {//Sub hash exists already => create deeper level of hash
-                SortedDictionary<String, String> Sub_Dic = new SortedDictionary<String, String>();
-                Mat similar = Cv2.ImRead(RecordPath + value + ".png");
-                string Similar_SubHash = HashImage(similar, hashsize + 8);
-                //put similar object name and hash in sub dictionary
-                Sub_Dic.Add(Similar_SubHash, value);
-                object_name = ImageSubObject(image, RecordPath, ref Sub_Dic);
-
-                //add new entry to sub dictionary
-                ImageSubHashTable.Add(Hash, Sub_Dic);
-
-                //mark the value in top dictionary for having sub hash
-                SubDic[Hash] = "SubHash";
-            }
-            else
-            {
-                // create the image object file
-                object_name = value + "-" + SubDic.Count();
-                image.ImWrite(RecordPath + object_name + ".png", png_prms);
-                // put the image object name and hash in dictionary
-                SubDic.Add(Hash, value + "-" + SubDic.Count());
-                //put back the sub dictionary
-                //ImageSubHashTable[Hash] = SubDic;
-            }
-
-            return object_name;
-        }
-
-        //recursive hash builder
-        public static String ImageObject(in Mat image, string RecordPath, ref bool already_hashed)
-        {
-            string Hash = HashImage(image);
-            string object_name = "";
-            if (!ImageHashTable.ContainsKey(Hash))
-            {
-                object_name = "Object" + ImageHashTable.Count();
-                image.ImWrite(RecordPath + object_name + ".png", png_prms);
-                ImageHashTable.Add(Hash, object_name);
-            } else
-            {
-                string value;
-                ImageHashTable.TryGetValue(Hash, out value);
-                if (value == "SubHash")
-                {// hash has more sub hashs. create sub hash or look if the sub hash exists
-                    SortedDictionary<String, String> SubDic;
-                    if (ImageSubHashTable.TryGetValue(Hash, out SubDic))
-                        object_name = ImageSubObject(image, RecordPath, ref SubDic);
-                }
-                else
-                {
-                    //check for original image to compare. if not equal create sub hash. 
-                    //move the similar one to sub hash and rename the similar file
-                    Mat similar = Cv2.ImRead(RecordPath + value + ".png");
-                    if (Graphic.ComparePercentage(similar, image) != 100.0)
-                    {// images are different but the hash was the same. create sub hash with bigger hash size
-
-                        SortedDictionary<String, String> SubDic = new SortedDictionary<String, String>();
-                        string Similar_SubHash = HashImage(similar, 16);
-                        //put similar object name and hash in sub dictionary
-                        SubDic.Add(Similar_SubHash, value);
-                        object_name = ImageSubObject(image, RecordPath, ref SubDic);
-
-                        //add new entry to sub dictionary
-                        ImageSubHashTable.Add(Hash, SubDic);
-
-                        //mark the value in top dictionary for having sub hash
-                        ImageHashTable[Hash] = "SubHash";
-                    }
-                    else
-                    { // Hash already exist
-                        already_hashed = true;
-                        object_name = value;
-                    }
-
-                    similar.Dispose();
-                }
-
-
-            }
-            return object_name;
-        }
-
-
-        static public List<String> HashObjectName(string hashstring)
-        {
-            String Value;
-            List<String> result = new List<String>();
-            if (ImageHashTable.TryGetValue(hashstring, out Value))
-            {
-                if (Value.Equals("SubHash"))
-                {
-                    SortedDictionary<String, String> SubDic;
-                    if (ImageSubHashTable.TryGetValue(hashstring, out SubDic))
-                        result.AddRange(SubDic.Values);
-                }
-                else
-                    result.Add(Value);
-            }
-
-            return result;
-        }
-
-        static public bool LoadObject(String name, out Mat @object)
-        {
-            if (File.Exists(name))
-            {
-                @object = Cv2.ImRead(name);
-                return true;
-            }
-            else
-            {
-                @object = new Mat();
-                return false;
-            }
-
         }
 
 

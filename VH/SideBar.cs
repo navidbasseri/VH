@@ -8,9 +8,7 @@ using System.Diagnostics;
 using OpenCvSharp;
 using Newtonsoft.Json;
 using System.IO;
-using System.Threading;
 using System.Runtime.Serialization;
-using System.Runtime.CompilerServices;
 
 namespace VH
 {
@@ -46,7 +44,6 @@ public partial class SideBar : Form
         Color record_bg = ColorCalib( Color.FromArgb(200, 30, 30));
         Color record_Dark_bg = ColorCalib (Color.FromArgb(100, 0, 0));
 
-        static string RecordPath = Application.StartupPath +  "\\Record\\";
         static PreviewBar previewBar = new PreviewBar();
 
         static List<LLHook.Event> events = new List<LLHook.Event>();
@@ -187,8 +184,8 @@ public partial class SideBar : Form
                 foreach(Tuple<String, String> ObjectName in ObjectNames)
                 {
                     Mat Object1, Object2;
-                    if (Graphic.LoadObject(RecordPath + ObjectName.Item1 + ".png", out Object1) &&
-                        Graphic.LoadObject(RecordPath + ObjectName.Item2 + ".png", out Object2))
+                    if (ImageHashTable.LoadObject(Global.RecordPath + ObjectName.Item1 + ".png", out Object1) &&
+                        ImageHashTable.LoadObject(Global.RecordPath + ObjectName.Item2 + ".png", out Object2))
                         Objects.Add(new Tuple<Mat, Mat>(Object1, Object2));
                     else
                         Objects.Add(new Tuple<Mat, Mat>(new Mat(), new Mat()));
@@ -202,8 +199,8 @@ public partial class SideBar : Form
                 foreach (Tuple < Mat,Mat > @object in Objects)
                 {
                     ObjectNames.Add(new Tuple<String, String>(
-                        Graphic.ImageObject(@object.Item1, RecordPath, ref already_hashed),
-                        Graphic.ImageObject(@object.Item2, RecordPath, ref already_hashed))
+                        ImageHashTable.ImageObject(@object.Item1, Global.RecordPath, ref already_hashed),
+                        ImageHashTable.ImageObject(@object.Item2, Global.RecordPath, ref already_hashed))
                     );
                 }
             }
@@ -226,9 +223,11 @@ public partial class SideBar : Form
             List<Rect> change_rects = new List<Rect>();
             if (AllowedArea(actual_point))
             {
-                //POC: Create object model of picture based on positions and movements in a screen box (or bigger, etc.)
+                //Create object model of picture based on positions and movements in a screen box (or bigger, etc.)
+                ObjectModel.ExtractObjects(Current_frame, Previous_frame, Mask, actual_point, TimeStamp);
+
                 change_rects = Graphic.DetectRegions(Mask, Graphic.RectfromPoint(actual_point, Current_frame.Size(), ViewBoxSize, ViewBoxSize), 128.0, 1, 0);
-                //TODO: no rect changes => take rect from point using DetectRegions from source Current_frame
+
                 //TODO: Optimization => combine changed rects to form a bigger rect and check for point inside it (or relevalant position)
 
                 if (change_rects.Exists(item => item.Contains(new OpenCvSharp.Point(actual_point.x, actual_point.y))))
@@ -315,7 +314,7 @@ public partial class SideBar : Form
 
             Task FlushEventsTask = Task.Run(() =>
             {
-                string filename = RecordPath + event_struct.time ;
+                string filename = Global.RecordPath + event_struct.time ;
                 JsonSerializerSettings jsonSerializerSettings = new JsonSerializerSettings();
                 jsonSerializerSettings.Formatting = Newtonsoft.Json.Formatting.Indented;
                 jsonSerializerSettings.NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore;
@@ -356,19 +355,9 @@ public partial class SideBar : Form
                         writer.Write(JsonConvert.SerializeObject(Hot_Areas.ToList(), jsonSerializerSettings));
                 }
 
-                //flushing the hash table
-                lock (Graphic.ImageHashTable)
-                {
-                    using (var writer = new StreamWriter(File.Create(RecordPath + "Objects.djs")))
-                        writer.Write(JsonConvert.SerializeObject(Graphic.ImageHashTable, jsonSerializerSettings));
-                    lock (Graphic.ImageSubHashTable)
-                    {
-                        using (var writer = new StreamWriter(File.Create(RecordPath + "Objects.sdjs")))
-                            writer.Write(JsonConvert.SerializeObject(Graphic.ImageSubHashTable, jsonSerializerSettings));
-                    }
-                }
+                ImageHashTable.Save();
 
-                freezd_image.ImWrite(filename + ".png", Graphic.png_prms);
+                freezd_image.ImWrite(filename + ".png", Global.png_prms);
                 freezd_image.Dispose();
             });
             
@@ -408,19 +397,17 @@ public partial class SideBar : Form
                         Previous_frame.CopyTo(previous_image);
                         POINT mouse_pos = Current_mouse_pos;
 
-                        //History the changes by objects found under the cursor position
+                        //Add the new founded Object or their new States in ObjectModel (process in background)
                         Task.Run(() =>
                         {
                             ChangesEventTrigger(Current_frame, previous_image, Mask, mouse_pos, TimeStamp);
-                            Model.ExtractObjects(Current_frame, previous_image, Mask, mouse_pos, TimeStamp);
-                            Model.Highlight();
                         });
                         
                         
                         if (CurrentFrameChanges > Framechange_tolerance)
                         {//if picture similarities are smaller that tolerance then flush the events
                             if (FlushEventsTrigger(previous_image, TimeStamp)) ;
-                            //TODO check if the flush was not succeed rise an error
+                            //TODO check if the flush was not succeed raise an error
                         }
                        
 
@@ -458,61 +445,14 @@ public partial class SideBar : Form
         }
 
 
-        public bool load_Dictionaries()
-        {
-            Graphic.ImageHashTable.Clear();
-            Graphic.ImageSubHashTable.Clear();
-
-            if (File.Exists(RecordPath + "Objects.djs"))
-            using (var reader = new StreamReader(File.OpenRead(RecordPath + "Objects.djs")))
-            {
-                try
-                {
-                    lock(Graphic.ImageHashTable)
-                    Graphic.ImageHashTable = JsonConvert.DeserializeObject<SortedDictionary<String, String>>(reader.ReadToEnd(), new Newtonsoft.Json.JsonSerializerSettings
-                    {
-                        TypeNameHandling = Newtonsoft.Json.TypeNameHandling.Auto,
-                        NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore,
-                    });
-                }
-                catch (Exception exception)
-                {
-                    Console.WriteLine(exception.Message);
-                    return false;
-
-                }
-            }
-
-            if (File.Exists(RecordPath + "Objects.sdjs"))
-                using (var reader = new StreamReader(File.OpenRead(RecordPath + "Objects.sdjs")))
-                {
-                    try
-                    {
-                        lock (Graphic.ImageSubHashTable)
-                            Graphic.ImageSubHashTable = JsonConvert.DeserializeObject<SortedDictionary<String, SortedDictionary<String, String>>>(reader.ReadToEnd(), new Newtonsoft.Json.JsonSerializerSettings
-                            {
-                                TypeNameHandling = Newtonsoft.Json.TypeNameHandling.Auto,
-                                NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore,
-                            });
-                    }
-                    catch (Exception exception)
-                    {
-                        Console.WriteLine(exception.Message);
-                        return false;
-
-                    }
-                }
-
-            return true;
-        }
 
         public SideBar()
         {
             InitializeComponent();
-            if (!Directory.Exists(RecordPath))
-                Directory.CreateDirectory(RecordPath);
+            if (!Directory.Exists(Global.RecordPath))
+                Directory.CreateDirectory(Global.RecordPath);
             else
-                load_Dictionaries();
+                ImageHashTable.Load();
 
 #if (!DEBUG)
             Runbutton.Enabled =
@@ -583,10 +523,8 @@ public partial class SideBar : Form
         {
             if (!Capturing)
             {
-                Graphic.ImageHashTable.Clear();
-                Graphic.ImageSubHashTable.Clear();
-                foreach (String file in Directory.GetFiles(RecordPath, "*.*", SearchOption.TopDirectoryOnly))
-                    File.Delete(file);
+                ImageHashTable.Reset();
+                Global.Reset();
             }
             Capturing = !Capturing;
             Recordbutton.Text = Capturing ? "Stop" : "Record";
@@ -1019,7 +957,7 @@ public partial class SideBar : Form
             Previous_Position = new POINT(0, 0);
             Previous_Calc_Position = new POINT(0, 0);
             List<String> jsonfiles = new List<string>();
-            jsonfiles.AddRange(Directory.GetFiles(RecordPath, "*.ejs", SearchOption.TopDirectoryOnly));
+            jsonfiles.AddRange(Directory.GetFiles(Global.RecordPath, "*.ejs", SearchOption.TopDirectoryOnly));
             foreach(String jsonfile in jsonfiles)
             {
                 EventStruct events = new EventStruct();

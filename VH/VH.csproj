@@ -46,7 +46,9 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Global.cs" />
     <Compile Include="Graphic.cs" />
+    <Compile Include="ImageHashTable.cs" />
     <Compile Include="MaskForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -103,6 +105,7 @@
     <Reference Include="System.Configuration" />
     <Reference Include="System.Data" />
     <Reference Include="System.Drawing" />
+    <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
   </ItemGroup>

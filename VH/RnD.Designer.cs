@@ -49,6 +49,10 @@
             this.Savebutton = new System.Windows.Forms.Button();
             this.Modelbutton = new System.Windows.Forms.Button();
             this.ResetModelbutton = new System.Windows.Forms.Button();
+            this.SaveObjectModelbutton = new System.Windows.Forms.Button();
+            this.LoadObjectModelbutton = new System.Windows.Forms.Button();
+            this.groupBox1 = new System.Windows.Forms.GroupBox();
+            this.groupBox1.SuspendLayout();
             this.SuspendLayout();
             // 
             // Quitbutton
@@ -221,17 +225,17 @@
             // 
             // Modelbutton
             // 
-            this.Modelbutton.Location = new System.Drawing.Point(18, 311);
+            this.Modelbutton.Location = new System.Drawing.Point(26, 19);
             this.Modelbutton.Name = "Modelbutton";
             this.Modelbutton.Size = new System.Drawing.Size(62, 23);
             this.Modelbutton.TabIndex = 17;
-            this.Modelbutton.Text = "Create";
+            this.Modelbutton.Text = "Start";
             this.Modelbutton.UseVisualStyleBackColor = true;
             this.Modelbutton.Click += new System.EventHandler(this.Modelbutton_Click);
             // 
             // ResetModelbutton
             // 
-            this.ResetModelbutton.Location = new System.Drawing.Point(86, 311);
+            this.ResetModelbutton.Location = new System.Drawing.Point(94, 19);
             this.ResetModelbutton.Name = "ResetModelbutton";
             this.ResetModelbutton.Size = new System.Drawing.Size(62, 23);
             this.ResetModelbutton.TabIndex = 18;
@@ -239,14 +243,46 @@
             this.ResetModelbutton.UseVisualStyleBackColor = true;
             this.ResetModelbutton.Click += new System.EventHandler(this.ResetModelbutton_Click);
             // 
+            // SaveObjectModelbutton
+            // 
+            this.SaveObjectModelbutton.Location = new System.Drawing.Point(162, 19);
+            this.SaveObjectModelbutton.Name = "SaveObjectModelbutton";
+            this.SaveObjectModelbutton.Size = new System.Drawing.Size(62, 23);
+            this.SaveObjectModelbutton.TabIndex = 19;
+            this.SaveObjectModelbutton.Text = "Save";
+            this.SaveObjectModelbutton.UseVisualStyleBackColor = true;
+            this.SaveObjectModelbutton.Click += new System.EventHandler(this.SaveObjectModelbutton_Click);
+            // 
+            // LoadObjectModelbutton
+            // 
+            this.LoadObjectModelbutton.Location = new System.Drawing.Point(230, 19);
+            this.LoadObjectModelbutton.Name = "LoadObjectModelbutton";
+            this.LoadObjectModelbutton.Size = new System.Drawing.Size(62, 23);
+            this.LoadObjectModelbutton.TabIndex = 20;
+            this.LoadObjectModelbutton.Text = "Load";
+            this.LoadObjectModelbutton.UseVisualStyleBackColor = true;
+            this.LoadObjectModelbutton.Click += new System.EventHandler(this.LoadObjectModelbutton_Click);
+            // 
+            // groupBox1
+            // 
+            this.groupBox1.Controls.Add(this.Modelbutton);
+            this.groupBox1.Controls.Add(this.LoadObjectModelbutton);
+            this.groupBox1.Controls.Add(this.ResetModelbutton);
+            this.groupBox1.Controls.Add(this.SaveObjectModelbutton);
+            this.groupBox1.Location = new System.Drawing.Point(17, 290);
+            this.groupBox1.Name = "groupBox1";
+            this.groupBox1.Size = new System.Drawing.Size(314, 49);
+            this.groupBox1.TabIndex = 21;
+            this.groupBox1.TabStop = false;
+            this.groupBox1.Text = "Object Model";
+            // 
             // RnD
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.ControlDarkDark;
-            this.ClientSize = new System.Drawing.Size(343, 346);
-            this.Controls.Add(this.ResetModelbutton);
-            this.Controls.Add(this.Modelbutton);
+            this.ClientSize = new System.Drawing.Size(343, 354);
+            this.Controls.Add(this.groupBox1);
             this.Controls.Add(this.Savebutton);
             this.Controls.Add(this.Resetbutton);
             this.Controls.Add(this.pointObjectcheckBox);
@@ -271,6 +307,7 @@
             this.ShowInTaskbar = false;
             this.Text = "VH R&D";
             this.KeyDown += new System.Windows.Forms.KeyEventHandler(this.RnD_KeyDown);
+            this.groupBox1.ResumeLayout(false);
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -297,5 +334,8 @@
         private System.Windows.Forms.Button Savebutton;
         private System.Windows.Forms.Button Modelbutton;
         private System.Windows.Forms.Button ResetModelbutton;
+        private System.Windows.Forms.Button SaveObjectModelbutton;
+        private System.Windows.Forms.Button LoadObjectModelbutton;
+        private System.Windows.Forms.GroupBox groupBox1;
     }
 }

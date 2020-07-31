@@ -1,21 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Drawing;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using System.Drawing.Imaging;
-using System.Runtime.InteropServices;
 using System.Diagnostics;
 using OpenCvSharp;
 using VH.Properties;
-using System.Configuration;
 using OpenCvSharp.Extensions;
-using System.Drawing.Configuration;
-using System.Threading;
 
 namespace VH
 {
@@ -29,7 +21,7 @@ namespace VH
         static Mat SamplePicture = new Mat();
         static double CompareResult = 0.0;
         static double SubCompareResult = 0.0;
-        static bool CreateMode = false;
+        static bool CaptureModel = false;
         static bool ResetModel = false;
 
 
@@ -42,7 +34,7 @@ namespace VH
         private void Quitbutton_Click(object sender, EventArgs e)
         {
             running = false;
-            Model.Reset();
+            ObjectModel.Reset();
             Hide();
             Settings.Default.XValue = XtextBox.Text;
             Settings.Default.YValue = YtextBox.Text;
@@ -62,7 +54,7 @@ namespace VH
                                      "ms:" + stopwatch.ElapsedMilliseconds + Environment.NewLine +
                                      "CP:" + CompareResult + Environment.NewLine +
                                      "SCP:" + SubCompareResult + Environment.NewLine +
-                                     "OC:" + Model.objects.Count();
+                                     "OC:" + ObjectModel.objects.Count();
             }
             catch (Exception exception)
             {
@@ -111,12 +103,13 @@ namespace VH
                         CompareResult = Graphic.ComparePercentage(image, Perv_image,out movehistory);
                         if (ResetModel)
                         {
-                            Model.Reset();
+                            ObjectModel.Reset();
+                            ImageHashTable.Reset();
                             ResetModel = false;
                         }
 
-                        if (CreateMode)
-                            Model.ExtractObjects(image, Perv_image, movehistory, LLHook.GetCursorPos(), DateTime.Now);
+                        if (CaptureModel)
+                            ObjectModel.ExtractObjects(image, Perv_image, movehistory, LLHook.GetCursorPos(), DateTime.Now);
                         
 
                         if (!SamplePicture.Empty())
@@ -211,8 +204,8 @@ namespace VH
 
                             // Create Object model
                             Cv2.Rectangle(image, new OpenCvSharp.Point(0, 0), new OpenCvSharp.Point(image.Width, image.Height), Scalar.FromRgb(0, 0, 0), -1);
-                            foreach (Object obj in Model.objects)
-                                if (obj.IsAvaliableState)
+                            foreach (Object obj in ObjectModel.objects)
+                                if (obj.IsStateAvaliable)
                                     obj.NextState.CopyTo(image.SubMat(obj.rect));
 
 
@@ -323,19 +316,37 @@ namespace VH
         {
             if (!SamplePicture.Empty())
             {
-                SamplePicture.ImWrite("capture.png", Graphic.png_prms);
+                SamplePicture.ImWrite("capture.png", Global.png_prms);
             }
 
         }
 
         private void Modelbutton_Click(object sender, EventArgs e)
         {
-            CreateMode = !CreateMode;
+            CaptureModel = !CaptureModel;
+            if (CaptureModel)
+                Modelbutton.Text = "Stop";
+            else
+                Modelbutton.Text = "Start";
         }
 
         private void ResetModelbutton_Click(object sender, EventArgs e)
         {
             ResetModel = true;
+        }
+
+        private void SaveObjectModelbutton_Click(object sender, EventArgs e)
+        {
+            Global.Reset();
+
+            ObjectModel.Save();
+            ImageHashTable.Save();
+        }
+
+        private void LoadObjectModelbutton_Click(object sender, EventArgs e)
+        {
+            ImageHashTable.Load();
+            ObjectModel.Load();
         }
     }
 }
