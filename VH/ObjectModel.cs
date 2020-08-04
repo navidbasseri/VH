@@ -5,6 +5,8 @@ using System.Drawing;
 using System.Runtime.Serialization;
 using Newtonsoft.Json;
 using System.IO;
+using System.Linq;
+using System.Windows.Forms;
 
 namespace VH
 {
@@ -12,6 +14,10 @@ namespace VH
     public class @Object : IDisposable
     {   
         public List<String> StateNames = new List<String>();
+        public List<Object> objects = new List<Object>();
+
+        public int id=-1;
+        public bool dynamic = false;
 
         [NonSerialized]
         public List<Mat> States = new List<Mat>();
@@ -34,13 +40,14 @@ namespace VH
         }
 
         [JsonConstructor]
-        public @Object(in Rect rect)
+        public @Object(int id, in Rect rect)
         {
+            this.id = id;
             this.rect = rect;
             CurrentState = 0;
         }
 
-        public @Object(in Rect rect, Mat mat) : this(rect)
+        public @Object(int id, in Rect rect, Mat mat) : this(id, rect)
         {
             this.States.Add(mat.Clone());
         }
@@ -116,6 +123,19 @@ namespace VH
         }
 
 
+        [JsonIgnore]
+        public int GetMaxId
+        {
+            get
+            {
+                if (objects.Count == 0)
+                    return this.id;
+                else
+                    return Math.Max(objects.Max(item => item.id), this.id);
+            }
+        }
+
+
         [OnSerializing()]
         internal void OnSerializingMethod(StreamingContext context)
         {// create the image files based on hash image structure
@@ -135,11 +155,17 @@ namespace VH
             }
         }
 
+
+
         public void Dispose()
         {
-            CurrentState = -1;
-            foreach (Mat mat in States)
-                mat.Dispose();
+            foreach (Object obj in objects)
+                obj.Dispose();
+            objects.Clear();
+
+            CurrentState = 0;
+            foreach (Mat state in States)
+                state.Dispose();
         }
     }
 
@@ -149,9 +175,21 @@ namespace VH
 
         public static void Reset()
         {
+            ImageHashTable.Reset();
             foreach (Object obj in objects)
                 obj.Dispose();
             objects.Clear();
+        }
+
+        public static int GetNewId
+        {
+            get
+            {
+                if (objects.Count == 0)
+                    return 0;
+                else
+                    return objects.Max(item => item.GetMaxId) +1;
+            }
         }
 
         public static List<@Object> FindOverlappedObject(Rect rect)
@@ -164,7 +202,7 @@ namespace VH
             return objects.FindAll(item => item.ContainState(state));
         }
 
-        public static bool UniqueAdd(Object obj)
+        public static int UniqueAdd(Object obj)
         {
             if (objects.Exists(item => (item.rect.Equals(obj.rect)))) {
                 Object @object = objects.Find(item => (item.rect.Equals(obj.rect)));
@@ -179,12 +217,12 @@ namespace VH
                 if (shared_state)
                 {
                     @object.AddState(unknownStates, true);
-                    return true;
+                    return @object.id;
                 }
             }
 
             objects.Add(obj);
-            return true;
+            return obj.id;
         }
 
 
@@ -196,12 +234,16 @@ namespace VH
             jsonSerializerSettings.TypeNameHandling = Newtonsoft.Json.TypeNameHandling.Auto;
             using (var writer = new StreamWriter(File.Create(Global.RecordPath + "Model.obj")))
                 writer.Write(JsonConvert.SerializeObject(objects, jsonSerializerSettings));
+
+            ImageHashTable.Save();
         }
 
 
         static public bool Load()
         {
             Reset();
+
+            ImageHashTable.Load();
 
             if (File.Exists(Global.RecordPath + "Model.obj"))
                 using (var reader = new StreamReader(File.OpenRead(Global.RecordPath + "Model.obj")))
@@ -233,21 +275,23 @@ namespace VH
             return result;
         }
 
-        public static void ExtractObjects(in Mat Current_frame, in Mat Previous_frame, in Mat Mask, POINT actual_point, DateTime TimeStamp, int ViewBoxSize = 0)
+        public static List<int> ExtractObjects(in Mat Current_frame, in Mat Previous_frame, in Mat Mask, POINT actual_point, int ViewBoxSize = 0)
         {
             List<Rect> hot_rects = new List<Rect>();
+            List<int> result = new List<int>();
+
+            Rect bounds = Graphic.RectfromPoint(actual_point, Current_frame.Size(), ViewBoxSize, ViewBoxSize);
 
             if (Cv2.CountNonZero(Mask) == 0) //No changes detected between two frames
-                return;
+                return result;
 
-            hot_rects = Graphic.DetectRegions(Mask, new Rect(0, 0, 0, 0), 128.0, 1, 0);
+            hot_rects = Graphic.DetectRegions(Mask, bounds, 128.0, 1, 0);
             
             if (hot_rects.Count == 0) // No reagion of interest detected
-                return;
+                return result;
 
             List<OpenCvSharp.Point> points = new List<OpenCvSharp.Point>();
            
-            Rect bounds = Graphic.RectfromPoint(actual_point, Current_frame.Size(), ViewBoxSize, ViewBoxSize);
 
             foreach (Rect r in hot_rects)
             {
@@ -268,7 +312,7 @@ namespace VH
             }
 
             if (points.Count == 0) //No object in bound area detected
-                return;
+                return result;
             Rect rect = Cv2.BoundingRect(points);
 
 //            foreach (Rect rect in hot_rects)
@@ -297,11 +341,11 @@ namespace VH
                             foreach (Rect frect in found_rects)
                             {
                                 Rect newObject = SubtractRect(new Rect(0, 0, rect_Current_frame.Width, rect_Current_frame.Height), frect);
-                                @Object fobj = new Object(newObject, rect_Current_frame.SubMat(newObject));
+                                @Object fobj = new Object(GetNewId, newObject, rect_Current_frame.SubMat(newObject));
                                 fobj.AddState(rect_Previous_frame.SubMat(newObject));
                                 fobj.rect.X += rect.X;
                                 fobj.rect.Y += rect.Y;
-                                UniqueAdd(fobj);
+                                result.Add(UniqueAdd(fobj));
                             }
                         }
                     }
@@ -310,15 +354,17 @@ namespace VH
 
                 if (container_objs.Count == 0)
                 {
-                    Object newobj = new Object(rect, rect_Current_frame);
+                    Object newobj = new Object(GetNewId, rect, rect_Current_frame);
                     newobj.AddState(rect_Previous_frame);
-                    UniqueAdd(newobj);
+                    result.Add(UniqueAdd(newobj));
                 }
 
                 rect_Current_frame.Dispose();
                 rect_Previous_frame.Dispose();
 
             }
+
+            return result;
         }
     }
 }

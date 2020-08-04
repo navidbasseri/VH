@@ -52,9 +52,9 @@ namespace VH
                 if (stopwatch.ElapsedMilliseconds != 0)
                     fps_label.Text = "fps:" + 1000 / stopwatch.ElapsedMilliseconds + Environment.NewLine +
                                      "ms:" + stopwatch.ElapsedMilliseconds + Environment.NewLine +
-                                     "CP:" + CompareResult + Environment.NewLine +
-                                     "SCP:" + SubCompareResult + Environment.NewLine +
-                                     "OC:" + ObjectModel.objects.Count();
+                                     "fCmp %:" + CompareResult + Environment.NewLine +
+                                     "SCmp %:" + SubCompareResult + Environment.NewLine +
+                                     "Objects:" + ObjectModel.objects.Count();
             }
             catch (Exception exception)
             {
@@ -104,12 +104,11 @@ namespace VH
                         if (ResetModel)
                         {
                             ObjectModel.Reset();
-                            ImageHashTable.Reset();
                             ResetModel = false;
                         }
 
                         if (CaptureModel)
-                            ObjectModel.ExtractObjects(image, Perv_image, movehistory, LLHook.GetCursorPos(), DateTime.Now);
+                            ObjectModel.ExtractObjects(image, Perv_image, movehistory, LLHook.GetCursorPos());
                         
 
                         if (!SamplePicture.Empty())
@@ -206,7 +205,11 @@ namespace VH
                             Cv2.Rectangle(image, new OpenCvSharp.Point(0, 0), new OpenCvSharp.Point(image.Width, image.Height), Scalar.FromRgb(0, 0, 0), -1);
                             foreach (Object obj in ObjectModel.objects)
                                 if (obj.IsStateAvaliable)
-                                    obj.NextState.CopyTo(image.SubMat(obj.rect));
+                                {
+                                    Mat sub= image.SubMat(obj.rect);
+                                    obj.NextState.CopyTo(sub);
+                                    sub.Dispose();
+                                }
 
 
                             if (objectw_flag)
@@ -221,6 +224,7 @@ namespace VH
                     }
 
                     image.Dispose();
+                    Fullscreenshot.Dispose();
                     stopwatch.Stop();
                 }
                 Cv2.DestroyAllWindows();
@@ -338,14 +342,11 @@ namespace VH
         private void SaveObjectModelbutton_Click(object sender, EventArgs e)
         {
             Global.Reset();
-
             ObjectModel.Save();
-            ImageHashTable.Save();
         }
 
         private void LoadObjectModelbutton_Click(object sender, EventArgs e)
         {
-            ImageHashTable.Load();
             ObjectModel.Load();
         }
     }

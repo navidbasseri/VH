@@ -8,7 +8,6 @@ using System.Diagnostics;
 using OpenCvSharp;
 using Newtonsoft.Json;
 using System.IO;
-using System.Runtime.Serialization;
 
 namespace VH
 {
@@ -57,179 +56,26 @@ public partial class SideBar : Form
         }
 
 
-        [Serializable()]
-        public class EventArea
-        {
-            public DateTime time = DateTime.Now;
-            public POINT actual_point = LLHook.GetCursorPos();
-            public bool capslock = (((ushort)LLHook.GetKeyState(0x14)) & 0xffff) != 0;
-            public bool shift = (((ushort)LLHook.GetKeyState(0x10)) & 0x1000) != 0;
-            public List<Rectangle> Rects = new List<Rectangle>();
-            public List<Tuple<String, String>> ObjectNames = new List<Tuple<String, String>>();
-
-            protected List<Rect> cv_rects = new List<Rect>();
-            protected List<Tuple<Mat,Mat>> Objects = new List<Tuple<Mat, Mat>>();
-
-            public EventArea()
-            {
-            }
-
-            public EventArea(DateTime value, POINT actual_point)
-            {
-                time = value;
-                this.actual_point = actual_point;
-            }
-
-
-            public void AddRects(IEnumerable<Rect> collection)
-            {
-                cv_rects.AddRange(collection);
-                foreach (Rect rect in cv_rects)
-                    Rects.Add(new Rectangle(rect.X,rect.Y, rect.Width,rect.Height));
-            }
-
-            public void AddObjects(in Mat Current_frame, in Mat Previous_frame)
-            {
-                foreach (Rect rect in cv_rects)
-                    Objects.Add(new Tuple<Mat, Mat>(Graphic.Crop(Previous_frame, rect), Graphic.Crop(Current_frame, rect)));
-            }
-
-            public List<Rect> FindRects(POINT pt)
-            {
-                return cv_rects.FindAll(item => item.Contains(pt.x,pt.y));
-            }
-
-            public List<Tuple<Mat, Mat, Rectangle>> FindRectObjects(POINT pt)
-            {
-                List<Tuple<Mat, Mat, Rectangle>> result = new List<Tuple<Mat, Mat, Rectangle>>();
-                foreach (Rectangle rect in Rects)
-                    if (rect.Contains(pt))
-                        result.Add(new Tuple<Mat, Mat, Rectangle>(Objects[Rects.IndexOf(rect)].Item1,
-                                                                  Objects[Rects.IndexOf(rect)].Item2,
-                                                                  rect));
-                return result;
-            }
-            public List<Tuple<Mat, Mat, Rectangle>> AllRectObjects()
-            {
-                List<Tuple<Mat, Mat, Rectangle>> result = new List<Tuple<Mat, Mat, Rectangle>>();
-                foreach (Rectangle rect in Rects)
-                    result.Add(new Tuple<Mat, Mat, Rectangle>(Objects[Rects.IndexOf(rect)].Item1,
-                                                              Objects[Rects.IndexOf(rect)].Item2,
-                                                              rect));
-                return result;
-            }
-
-
-            public List<Rect> GetRects()
-            {
-                return cv_rects;
-            }
-
-            public List<Tuple<Mat, Mat>> GetObjects()
-            {
-                return Objects;
-            }
-
-            public bool OverlapRect(Rect bound_rect)
-            {
-                foreach (Rect rect in cv_rects)
-                {
-                    Rect union = bound_rect & rect;
-                    if (union.Width * union.Height != 0)
-                        return true;
-                }
-
-                return false;
-            }
-
-            public bool ContainPoint(OpenCvSharp.Point pt)
-            {
-                foreach (Rect rect in cv_rects)
-                {
-                        if(rect.Contains(pt))
-                            return true;
-                }
-
-                return false;
-            }
-
-
-            //
-            // Summary:
-            //     Check if the current change contains the changes from argument.
-            //
-            // Parameters:
-            //   item:
-            //     The ChangeAreas object to be checked against current ChangeAreas object
-            //     the Hashs in each object will be considered for comparing.
-            //
-            // Returns:
-            //     true if the both object have overlapping Hashs.
-            //     otherwise false.
-            public bool ContainObjects(EventArea item)
-            {
-                foreach (Tuple<String, String> h in item.ObjectNames)
-                    if (ObjectNames.Contains(h))
-                        return true;
-
-                return false;
-            }
-
-            [OnDeserialized()]
-            internal void OnDeserializedMethod(StreamingContext context)
-            {// recreate the rects from rectangles on deserialize
-                foreach (Rectangle rect in Rects)
-                    cv_rects.Add(new Rect(rect.X, rect.Y, rect.Width, rect.Height));
-
-                foreach(Tuple<String, String> ObjectName in ObjectNames)
-                {
-                    Mat Object1, Object2;
-                    if (ImageHashTable.LoadObject(Global.RecordPath + ObjectName.Item1 + ".png", out Object1) &&
-                        ImageHashTable.LoadObject(Global.RecordPath + ObjectName.Item2 + ".png", out Object2))
-                        Objects.Add(new Tuple<Mat, Mat>(Object1, Object2));
-                    else
-                        Objects.Add(new Tuple<Mat, Mat>(new Mat(), new Mat()));
-                }
-            }
-
-            [OnSerializing()]
-            internal void OnSerializingMethod(StreamingContext context)
-            {// create the image files based on hash image structure
-                bool already_hashed = false;
-                foreach (Tuple < Mat,Mat > @object in Objects)
-                {
-                    ObjectNames.Add(new Tuple<String, String>(
-                        ImageHashTable.ImageObject(@object.Item1, Global.RecordPath, ref already_hashed),
-                        ImageHashTable.ImageObject(@object.Item2, Global.RecordPath, ref already_hashed))
-                    );
-                }
-            }
-
-            ~EventArea()
-            {
-                foreach (Tuple<Mat, Mat> @object in Objects)
-                {
-                    @object.Item1.Dispose();
-                    @object.Item2.Dispose();
-                }
-            }
-
-        }
-
         public bool ObjectTracker(in Mat Current_frame, in Mat Previous_frame, in Mat Mask, POINT actual_point, DateTime TimeStamp)
         {
-            EventArea eventarea = new EventArea(TimeStamp, actual_point);
-
-            List<Rect> change_rects = new List<Rect>();
+            //  List<Rect> change_rects = new List<Rect>();
             if (AllowedArea(actual_point))
             {
+                EventArea eventarea = new EventArea(TimeStamp, actual_point);
                 //Create object model of picture based on positions and movements in a screen box (or bigger, etc.)
-                ObjectModel.ExtractObjects(Current_frame, Previous_frame, Mask, actual_point, TimeStamp);
+                if (eventarea.AddObjects(ObjectModel.ExtractObjects(Current_frame, Previous_frame, Mask, actual_point, ViewBoxSize)))
+                {
+                    eventAreas.Add(eventarea);
+                    return true;
+                }
+                else
+                    eventarea.Dispose();
+            }
 
+                /*
                 change_rects = Graphic.DetectRegions(Mask, Graphic.RectfromPoint(actual_point, Current_frame.Size(), ViewBoxSize, ViewBoxSize), 128.0, 1, 0);
 
                 //TODO: Optimization => combine changed rects to form a bigger rect and check for point inside it (or relevalant position)
-
                 if (change_rects.Exists(item => item.Contains(new OpenCvSharp.Point(actual_point.x, actual_point.y))))
                 {
                     change_rects.RemoveAll(item => !item.Contains(new OpenCvSharp.Point(actual_point.x, actual_point.y)));
@@ -263,11 +109,11 @@ public partial class SideBar : Form
                 //drop this event area if similar event with the same image areas and changes already logged
                 if (!eventAreas.Exists(item => item.ContainObjects(eventarea)))
                     eventAreas.Add(eventarea);
-            }
+            }*/
 
-            //POC: R&D -> the whole image needs to be saved in case there are changes not under cursor but related to current event (example : keyboard events)
-
-            return true;
+                //POC: R&D -> the whole image needs to be saved in case there are changes not under cursor but related to current event (example : keyboard events)
+            
+                return false;
         }
 
         public class EventStruct
@@ -288,8 +134,8 @@ public partial class SideBar : Form
             {
                 if (!end) 
                     return false;
-                else  // in ending senarion no need to keep any change area if there is no event happened
-                    eventAreas.Clear();
+                //else  // in ending senarion no need to keep any change area if there is no event happened
+                //    eventAreas.Clear();
             }
 
             EventStruct event_struct = new EventStruct();
@@ -330,7 +176,7 @@ public partial class SideBar : Form
                     //      case 1: hover cause change under cursor (probible object)
                     //      case 2: hover casue another area change (probible objects out of cursor area in combining with case 1)
                     //      case 3: hover cause both area changes (track and depart objects from previous object state in case 1)
-                    HashSet<EventArea> Hot_Areas = new HashSet<EventArea>();
+                    //HashSet<EventArea> Hot_Areas = new HashSet<EventArea>();
 
                     /* REFACTOR : all changed area should be considered to create the last state therefore cannot be removed easily
                     // Rect bound_rect = Graphic.RectfromPoint(event_struct.actual_point, freezd_image.Size(), ViewBoxSize, ViewBoxSize);
@@ -347,18 +193,21 @@ public partial class SideBar : Form
                     Hot_Areas.Clear();
                     */
 
-                    foreach (EventArea eventArea in event_Areas)
-                        Hot_Areas.Add(eventArea);
+                    //foreach (EventArea eventArea in event_Areas)
+                    //    Hot_Areas.Add(eventArea);
 
 
                     using (var writer = new StreamWriter(File.Create(filename + ".cjs")))
-                        writer.Write(JsonConvert.SerializeObject(Hot_Areas.ToList(), jsonSerializerSettings));
+                        writer.Write(JsonConvert.SerializeObject(event_Areas, jsonSerializerSettings));
                 }
 
-                ImageHashTable.Save();
 
                 freezd_image.ImWrite(filename + ".png", Global.png_prms);
                 freezd_image.Dispose();
+
+                if (end)
+                    ObjectModel.Save();
+
             });
             
             return true;
@@ -397,9 +246,9 @@ public partial class SideBar : Form
                         Previous_frame.CopyTo(previous_image);
                         POINT mouse_pos = Current_mouse_pos;
 
-                        //Add the new founded Object or their new States in ObjectModel (process in background)
                         Task.Run(() =>
                         {
+                            //Add the new founded Object or their new States in ObjectModel (process in background)
                             ChangesEventTrigger(Current_frame, previous_image, Mask, mouse_pos, TimeStamp);
                         });
                         
@@ -410,7 +259,6 @@ public partial class SideBar : Form
                             //TODO check if the flush was not succeed raise an error
                         }
                        
-
                     }
                     Current_frame.CopyTo(Previous_frame);
                 }
@@ -452,7 +300,7 @@ public partial class SideBar : Form
             if (!Directory.Exists(Global.RecordPath))
                 Directory.CreateDirectory(Global.RecordPath);
             else
-                ImageHashTable.Load();
+                ObjectModel.Save();
 
 #if (!DEBUG)
             Runbutton.Enabled =
@@ -523,7 +371,7 @@ public partial class SideBar : Form
         {
             if (!Capturing)
             {
-                ImageHashTable.Reset();
+                ObjectModel.Reset();
                 Global.Reset();
             }
             Capturing = !Capturing;
@@ -623,6 +471,8 @@ public partial class SideBar : Form
             else
                 PinPintureBox.BackgroundImage = Properties.Resources.Hide;
         }
+
+
 
         public bool ExecuteEvent(in LLHook.Event event_, in List<EventArea> eventareas, in Mat image, in double wait=0, in int retry = 0)
         {

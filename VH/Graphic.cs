@@ -237,6 +237,8 @@ namespace VH
 
         public static Rect RectfromPoint(in POINT point, in OpenCvSharp.Size boundry, int width = 16, int height = 16)
         {
+            if (width == 0 || height==0)
+                return new Rect(0, 0, 0, 0);
             int x = (point.x - width / 2);
             if (x < 0) x = 0;
             if (boundry.Width != int.MaxValue && x + width > boundry.Width) x = boundry.Width - width;
@@ -307,7 +309,8 @@ namespace VH
                 //MessageBox.Show(newimage.Type().ToString());
                 OpenCvSharp.Point[][] msers;
                 Rect[] bboxes;
-                mser.DetectRegions(newimage, out msers, out bboxes);
+                lock(mser)
+                    mser.DetectRegions(newimage, out msers, out bboxes);
                 if (bboxes.Count() > 0)
                     if (rect.X > 0 || rect.Y > 0)
                         foreach (Rect r in bboxes)
@@ -321,7 +324,8 @@ namespace VH
                 if (blur_size_ > 0)
                     BlurOrg(ref newimage, new Rect(0, 0, 0, 0), blur_size_);
 
-                mser.DetectRegions(newimage, out msers, out bboxes);
+                lock (mser)
+                    mser.DetectRegions(newimage, out msers, out bboxes);
                 if (bboxes.Count() > 0)
                     if (rect.X > 0 || rect.Y > 0)
                         foreach (Rect r in bboxes)
@@ -339,7 +343,8 @@ namespace VH
 
                         Mat bwimage = new Mat();
                         Cv2.Threshold(newimage, bwimage, divider_, 255.0, ThresholdTypes.Binary);
-                        mser.DetectRegions(bwimage, out msers, out bboxes);
+                        lock (mser)
+                            mser.DetectRegions(bwimage, out msers, out bboxes);
 
                         if (bboxes.Count() > 0)
                         {
